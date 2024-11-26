@@ -21,7 +21,7 @@ def parse():
     
     # Dataset options
     parser.add_argument('--split_dir', type=str, default=str("data/splits"))
-    parser.add_argument('--data_type', type=str, default="preprocessed", choices=["raw", "pruned", "preprocessed"])
+    parser.add_argument('--data_type', type=str, default="preprocessed", choices=["raw", "filtered", "pruned", "preprocessed"])
     parser.add_argument('--preprocessing_pipe', type=str, default="z_score_data/")
     parser.add_argument('--crop_size', type=int, default="1280")
     parser.add_argument('--num_workers', type=int, default=0) 
@@ -46,7 +46,7 @@ def parse():
     parser.add_argument('--num_channels', type=int, default=32)
     #parser.add_argument('--num_classes', type=int, default=4)
     ## SyncNet
-    parser.add_argument('--input_size', type=int, default=1280)#syncnet 276, #rnn 1
+    parser.add_argument('--input_size', type=int, default=1280) #syncnet 276, #rnn 1
     ## EEGChannelNet
     parser.add_argument('--in_channels', type=int, default=1)
     parser.add_argument('--input_width', type=int, default=1280)

@@ -3,10 +3,14 @@ import mne
 import json
 import argparse
 import numpy as np
+
+from scipy.signal import butter, lfilter
 from tqdm import tqdm
+
 import src.config as config
 
 mne.set_log_level('ERROR')
+
 
 def parse():
     
@@ -54,15 +58,42 @@ def interpolate(raw_data):
         
     return raw_data
 
+# def butter_bandpass(lowcut, highcut, fs, order=5):
+#     return butter(order, [lowcut, highcut], fs=fs, btype='band')
+
+# def butter_bandpass_filter(data, lowcut, highcut, fs, order=5):
+#     b, a = butter_bandpass(lowcut, highcut, fs, order=order)
+#     y = lfilter(b, a, data)
+#     return y
+
 def open_and_interpolate(file):
-    raw_file = mne.io.read_raw_fif(file, preload=True)
-    raw_data = raw_file.get_data()
+    CH_NAMES = [
+        'Cz', 'Fz', 'Fp1', 'F7', 'F3', 'FC1', 'C3', 'FC5', 'FT9', 'T7', 'CP5', 'CP1', 'P3', 'P7', 'PO9', 'O1', 'Pz', 'Oz', 'O2', 'PO10', 'P8', 'P4', 'CP2', 'CP6', 'T8', 'FT10', 'FC6', 'C4', 'FC2', 'F4', 'F8', 'Fp2'
+    ]
+
+    raw_data = mne.io.read_raw_fif(file, preload=True)
+    all_ch = raw_data.ch_names
+    drop = [ch for ch in all_ch if ch not in CH_NAMES]
+    raw_data = raw_data.drop_channels(drop).get_data()
+
     try:
-        raw_data = interpolate(raw_data)
+        interpolated = interpolate(raw_data)
     except ResidualNan as e:
         print(f"Residual NaNs in {file}")
         return None
-    return raw_data
+
+    fs = 128  # Sampling frequency in Hz (adjust as needed)
+    info = mne.create_info(ch_names=CH_NAMES, sfreq=fs, ch_types='eeg')
+    interpolated = mne.io.RawArray(interpolated, info)
+
+    interpolated.filter(1., 50.)
+
+    ica = mne.preprocessing.ICA(n_components=20, random_state=15, max_iter=1000, method='picard')
+    ica.fit(interpolated)
+    ica.exclude = [0, 1]
+    interpolated = ica.apply(interpolated).get_data()
+
+    return interpolated
 
 def get_stats(file_list):
     tmp = []

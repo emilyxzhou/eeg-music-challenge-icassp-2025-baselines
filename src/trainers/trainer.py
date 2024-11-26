@@ -22,17 +22,33 @@ class Trainer:
         "Use for validation and test"
         data = batch['eeg']
         
-        # divide in chunks according to the model (crop size 1000)
-        n_chunks = data.shape[2] // self.args.crop_size
-        chunks = torch.split(data, self.args.crop_size, dim=2)
-        include_last = (data.shape[2] % self.args.crop_size) == 0
-        if include_last:
-            chunks = torch.cat(chunks, dim=0)
-        else:
-            chunks = torch.cat(chunks[:-1], dim=0)
-        bs = chunks.shape[0]
-        assert bs == n_chunks, f"Batch size {bs} different from number of chunks {n_chunks}"
+        # divide in chunks according to the model (crop size 1280)
+        # n_chunks = data.shape[2] // self.args.crop_size
+        # chunks = torch.split(data, self.args.crop_size, dim=2)
+        # include_last = (data.shape[2] % self.args.crop_size) == 0
+        # if include_last:
+        #     chunks = torch.cat(chunks, dim=0)
+        # else:
+        #     chunks = torch.cat(chunks[:-1], dim=0)
+        # bs = chunks.shape[0]
+        # assert bs == n_chunks, f"Batch size {bs} different from number of chunks {n_chunks}"
         
+        # batch['eeg'] = chunks
+        # batch['label'] = batch['label'].repeat(n_chunks)
+
+        fs = 128
+        split_size = 10*fs
+        overlap = 5*fs
+        chunks = []
+        start = 0
+        end = start + split_size
+        while end <= data.size(2):
+            chunks.append(data[:, :, start:end])
+            start += split_size - overlap
+            end = start + split_size
+        chunks = torch.stack(chunks)
+
+        n_chunks = chunks.shape[0]
         batch['eeg'] = chunks
         batch['label'] = batch['label'].repeat(n_chunks)
         
