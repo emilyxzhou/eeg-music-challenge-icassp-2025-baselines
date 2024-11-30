@@ -146,7 +146,6 @@ def main(args):
         
         run.name = f"{updated_args.task}_{updated_args.model}_{updated_args.tag}"
 
-        
         model, metrics = trainer.train(loaders)
 
         if not updated_args.sweep:

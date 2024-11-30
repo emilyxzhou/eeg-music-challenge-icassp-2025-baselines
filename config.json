@@ -1,4 +1,4 @@
 {
-    "dataset_path": "",
-    "wandb_entity": ""
+    "dataset_path": "/data1/open_data/eremus_dataset",
+    "wandb_entity": "emilyzho-usc"
 }

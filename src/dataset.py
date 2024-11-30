@@ -88,8 +88,8 @@ def get_loaders(args):
             subdir=subdir,
             split_dir=args.split_dir,
             split=split,
-            ext = ext,
-            task = args.task,
+            ext=ext,
+            task=args.task,
             transform=train_transforms if split == "train" else test_transforms
         )
         for split in splits

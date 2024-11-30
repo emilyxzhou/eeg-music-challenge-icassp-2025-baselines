@@ -19,6 +19,7 @@ def parse():
     parser.add_argument('--split_dir', type=str, default=str("data/splits"))
     parser.add_argument('--input_dir', type=str, default=str("pruned"))
     parser.add_argument('--output_dir', type=str, default=str("preprocessed"))
+    parser.add_argument('--split_bands', type=bool, default=False)
 
     args = parser.parse_args()
     
@@ -58,15 +59,15 @@ def interpolate(raw_data):
         
     return raw_data
 
-# def butter_bandpass(lowcut, highcut, fs, order=5):
-#     return butter(order, [lowcut, highcut], fs=fs, btype='band')
+def butter_bandpass(lowcut, highcut, fs, order=5):
+    return butter(order, [lowcut, highcut], fs=fs, btype='band')
 
-# def butter_bandpass_filter(data, lowcut, highcut, fs, order=5):
-#     b, a = butter_bandpass(lowcut, highcut, fs, order=order)
-#     y = lfilter(b, a, data)
-#     return y
+def butter_bandpass_filter(data, lowcut, highcut, fs, order=5):
+    b, a = butter_bandpass(lowcut, highcut, fs, order=order)
+    y = lfilter(b, a, data)
+    return y
 
-def open_and_interpolate(file):
+def open_and_interpolate(file, split_bands=False):
     CH_NAMES = [
         'Cz', 'Fz', 'Fp1', 'F7', 'F3', 'FC1', 'C3', 'FC5', 'FT9', 'T7', 'CP5', 'CP1', 'P3', 'P7', 'PO9', 'O1', 'Pz', 'Oz', 'O2', 'PO10', 'P8', 'P4', 'CP2', 'CP6', 'T8', 'FT10', 'FC6', 'C4', 'FC2', 'F4', 'F8', 'Fp2'
     ]
@@ -88,17 +89,21 @@ def open_and_interpolate(file):
 
     interpolated.filter(1., 50.)
 
-    ica = mne.preprocessing.ICA(n_components=20, random_state=15, max_iter=1000, method='picard')
-    ica.fit(interpolated)
-    ica.exclude = [0, 1]
-    interpolated = ica.apply(interpolated).get_data()
+    if split_bands:
+        interpolated = isolate_bands(interpolated)
+    else:
+        interpolated = interpolated.get_data()
+    # ica = mne.preprocessing.ICA(n_components=20, random_state=15, max_iter=1000, method='picard')
+    # ica.fit(interpolated)
+    # ica.exclude = [0, 1]
+    # interpolated = ica.apply(interpolated).get_data()
 
     return interpolated
 
 def get_stats(file_list):
     tmp = []
     for file in tqdm(file_list):
-        raw_data = open_and_interpolate(file)
+        raw_data = open_and_interpolate(file, split_bands=False)
         tmp.append(raw_data)
     # concatenate all the data
     data = np.concatenate(tmp, axis=1)
@@ -111,10 +116,37 @@ def get_stats(file_list):
 def z_score(raw_data, mean, std):
     return (raw_data - mean[:, np.newaxis]) / std[:, np.newaxis]
 
+def isolate_bands(data):
+    FS = 128
+    bands = {
+        # "delta": (0.5, 4),   
+        "theta": (4, 8),     
+        "alpha": (8, 12),    
+        "beta": (13, 30),   
+        "gamma": (30, 60)    
+    }
+    out = {band_name: None for band_name in bands.keys()}
+
+    for band_name in bands.keys():
+        low = bands[band_name][0]
+        high = bands[band_name][1]
+        band = data.filter(
+            low,
+            high,
+            n_jobs=None,  # use more jobs to speed up.
+            l_trans_bandwidth=1,  # make sure filter params are the same
+            h_trans_bandwidth=1,
+        ) 
+        out[band_name] = band.get_data()
+
+    return out
+
+
 def main(args):
-    
     input_dir = os.path.join(args.data_dir, args.input_dir)
     output_dir = os.path.join(args.data_dir, args.output_dir)
+
+    split_bands = args.split_bands
     
     print(f"Input directory: {input_dir}")
     input_dirs = [os.path.join(input_dir, f) for f in os.listdir(input_dir) if os.path.isdir(os.path.join(input_dir, f))]
@@ -144,7 +176,6 @@ def main(args):
         "val_subject": splits_2["val_subject"],
         "test_trial": splits_1["test_trial"],
         "test_subject": splits_2["test_subject"]
-
     }
     
     # Create a list with only train files for statistics
@@ -177,12 +208,19 @@ def main(args):
         input_file = file
         output_file = file.replace(".fif", ".npy").replace(input_dir, output_dir)
         
-        raw_data = open_and_interpolate(input_file)
+        raw_data = open_and_interpolate(input_file, split_bands)
         if raw_data is None:
             continue
-        z_data = z_score(raw_data, mean, std)
 
-        np.save(output_file, z_data)
+        if split_bands:
+            for band_name in raw_data.keys():
+                data = raw_data[band_name]
+                z_data = z_score(data, mean, std)
+                file = output_file.replace(".npy", f"_{band_name}.npy")
+                np.save(file, z_data)
+        else:
+            z_data = z_score(raw_data, mean, std)
+            np.save(output_file, z_data)
     
     print("Preprocessing done!")
         
