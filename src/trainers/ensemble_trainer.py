@@ -55,11 +55,6 @@ class EnsembleTrainer:
         
         return batch
 
-    def isolate_bands(self, batch):
-        fs = 128  # Sampling frequency in Hz (adjust as needed)
-        info = mne.create_info(ch_names=CH_NAMES, sfreq=fs, ch_types='eeg')
-        interpolated = mne.io.RawArray(interpolated, info)
-        
     def train(self, loaders):
 
         # Compute splits names

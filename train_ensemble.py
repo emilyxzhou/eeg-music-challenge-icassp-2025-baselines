@@ -25,6 +25,7 @@ def parse():
     parser.add_argument('--preprocessing_pipe', type=str, default="z_score_data/")
     parser.add_argument('--crop_size', type=int, default="1280")
     parser.add_argument('--num_workers', type=int, default=0) 
+    parser.add_argument('--band', type=str, default=None, choices=["theta", "alpha", "beta", "gamma", "all"])
     
     # Experiment options
     parser.add_argument('-t', '--tag', default='emotion_recognition')

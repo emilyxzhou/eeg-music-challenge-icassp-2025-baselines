@@ -11,7 +11,7 @@ from src.eeg_transforms import RandomCrop, ToTensor, Standardize
 mne.set_log_level("ERROR")
 
 class EremusDataset(Dataset):
-    def __init__(self, subdir, split_dir, split="train", task="subject_identification", ext="fif", transform=None, prefix=""):
+    def __init__(self, subdir, split_dir, split="train", task="subject_identification", ext="fif", transform=None, prefix="", band=None):
         
         self.dataset_dir = config.get_attribute("dataset_path", prefix=prefix)
         self.subdir = os.path.join(subdir, split) if "test" in split else os.path.join(subdir, "train")
@@ -27,8 +27,12 @@ class EremusDataset(Dataset):
         files = []
         for sample in self.samples:
             #path = os.path.join(self.dataset_dir, self.subdir, sample['filename_preprocessed'])
-            path = os.path.join(self.dataset_dir, self.subdir, f"{sample['id']}_eeg.{self.ext}")
+            if band is None:
+                path = os.path.join(self.dataset_dir, self.subdir, f"{sample['id']}_eeg.{self.ext}")
+            else:
+                path = os.path.join(self.dataset_dir, self.subdir, f"{sample['id']}_eeg_{band}.{self.ext}")
             files.append(path)
+
         files = list(set(files))
         #self.files = {f: np.load(f)['arr_0'] for f in files}
         if self.ext == "npy":
@@ -61,6 +65,8 @@ def get_loaders(args):
         splits = ["train", "val_trial", "val_subject"]
     else:
         raise ValueError(f"Task {args.task} not recognized")
+
+    band = args.band
     
     # Define transforms
     train_transforms = T.Compose([
@@ -83,28 +89,57 @@ def get_loaders(args):
     else:
         ext = "npy"
 
-    datasets = {
-        split: EremusDataset(
-            subdir=subdir,
-            split_dir=args.split_dir,
-            split=split,
-            ext=ext,
-            task=args.task,
-            transform=train_transforms if split == "train" else test_transforms
-        )
-        for split in splits
-    }
-    
-    
-    loaders = {
-        split: DataLoader(
-            dataset,
-            batch_size=args.batch_size if split == "train" else 1,
-            shuffle=True if split == "train" else False,
-            num_workers=args.num_workers
-        )
-        for split, dataset in datasets.items()
-    }
+    if band != "all":
+        datasets = {
+            split: EremusDataset(
+                subdir=subdir,
+                split_dir=args.split_dir,
+                split=split,
+                ext=ext,
+                task=args.task,
+                band=band,
+                transform=train_transforms if split == "train" else test_transforms
+            )
+            for split in splits
+        }
+        
+        loaders = {
+            split: DataLoader(
+                dataset,
+                batch_size=args.batch_size if split == "train" else 1,
+                shuffle=True if split == "train" else False,
+                num_workers=args.num_workers
+            )
+            for split, dataset in datasets.items()
+        }
+    else:
+        bands = ["theta", "alpha", "beta", "gamma"]
+        datasets = {}
+        loaders = {}
+
+        for band in bands:
+            datasets["band"] = {
+                split: EremusDataset(
+                subdir=subdir,
+                split_dir=args.split_dir,
+                split=split,
+                ext=ext,
+                task=args.task,
+                band=band,
+                transform=train_transforms if split == "train" else test_transforms
+            )
+            for split in splits
+            }
+        
+            loaders[band] = {
+                split: DataLoader(
+                    dataset,
+                    batch_size=args.batch_size if split == "train" else 1,
+                    shuffle=True if split == "train" else False,
+                    num_workers=args.num_workers
+                )
+                for split, dataset in datasets["band"].items()
+            }
 
     return loaders, args
 
@@ -137,8 +172,8 @@ def get_test_loader(args):
         subdir=subdir,
         split_dir=args.split_dir,
         split=split,
-        ext = ext,
-        task = args.task,
+        ext=ext,
+        task=args.task,
         transform=test_transforms
         ) for split in splits
     }
@@ -148,8 +183,8 @@ def get_test_loader(args):
         subdir=subdir,
         split_dir=args.split_dir,
         split=split,
-        ext = ext,
-        task = args.task,
+        ext=ext,
+        task=args.task,
         transform=None
         ) for split in splits
     }
